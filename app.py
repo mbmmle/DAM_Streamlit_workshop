@@ -1,10 +1,14 @@
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 
 # =========================================================
-# Page setup
+# Page setups
 # =========================================================
-
+st.set_page_config(
+    page_title="Analiza",
+    layout="wide"
+)
 DATA_PATH = "ncr_ride_bookings.csv"
 
 
@@ -26,8 +30,8 @@ rides["Is Not Completed"] = ~rides["Is Completed"]
 # =========================================================
 # Header
 # =========================================================
-
-
+st.title("Uber Ride Analytics")
+#st.dataframe(rides.head(20))
 # =========================================================
 # Sidebar filters
 # =========================================================
@@ -40,19 +44,21 @@ not_completed_rides = rides[rides["Is Not Completed"]]
 # =========================================================
 # Tabs
 # =========================================================
-
+Tab1, Tab2 = st.tabs(["Overview","Cancellations"])
 
 
 # =========================================================
 # Tab 1: Overview
 # =========================================================
 #region Przygotowanie danych do zakładki
+
+
+
 total_bookings = round(len(rides),0)
 success_rate = round(rides["Is Completed"].mean() * 100,2)
 cancellation_rate = round(rides["Is Cancelled"].mean() * 100,2)
 total_revenue = round(completed_rides["Booking Value"].sum()/1000,0)
 avg_distance = round(completed_rides["Ride Distance"].mean(),2)
-
 daily_bookings = rides.groupby("Date").size().reset_index(name="Bookings")
 
 status_overview = rides["Booking Status"].value_counts().reset_index()
@@ -74,51 +80,71 @@ revenue_by_payment = (
     .sort_values("Booking Value", ascending=False)
 )
 #endregion
+with Tab1:
+    st.subheader("OVERVIEW")
 
-print("OVERVIEW")
+    # -------------
+    # KPI 
+    # -------------
 
-# -------------
-# KPI 
-# -------------
-print("Bookings", total_bookings)
-print("Success rate", str(success_rate) + "%")
-print("Cancellation rate", str(cancellation_rate) + "%")
-print("Revenue", "₹" + str(total_revenue) + "tys")
-print("Avg distance", str(round(avg_distance,2)) + "km")
 
-# -------------
-# Wykres liniowy liczby bookingów
-# -------------
-fig = px.line(daily_bookings, x="Date", y="Bookings")
-#fig.show()
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Bookings", total_bookings)
+    col2.metric("Success rate", str(success_rate) + "%")
+    col3.metric("Cancellation rate", str(cancellation_rate) + "%")
+    col4.metric("Revenue", "₹" + str(total_revenue) + "tys")
+    col5.metric("Avg distance", str(round(avg_distance,2)) + "km")
 
-# -------------
-# Wykres kołowy statusów 
-# -------------
-fig = px.pie(status_overview, names="Status", values="Bookings", hole=0.35)
-#fig.show()
 
-# -------------
-# Wykres słupkowy typu pojazdu
-# -------------
-fig = px.bar(revenue_by_vehicle, x="Vehicle Type", y="Booking Value")
-#fig.show()
+    # -------------
+    # Wykres liniowy liczby bookingów
+    # -------------
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("#### Bookings over Time")
+        fig = px.line(daily_bookings, x="Date", y="Bookings")
+        st.plotly_chart(fig,use_container_width=True)
+    #fig.show()
 
-# -------------
-# Wykres słupkowy metody płatności
-# -------------
-fig = px.bar(revenue_by_payment, x="Payment Method", y="Booking Value")
-#fig.show()
+    # -------------
+    # Wykres kołowy statusów 
+    # -------------
+    with c2:
+        st.markdown("#### Status Chart")
+        fig = px.pie(status_overview, names="Status", values="Bookings", hole=0.35)
+        st.plotly_chart(fig,use_container_width=True)
+    #fig.show()
 
-# -------------
-# Wykres rozrzutu distans vs wartość
-# -------------
-fig = px.scatter(
-    completed_rides,
-    x="Ride Distance",
-    y="Booking Value",
-    hover_data=["Payment Method", "Pickup Location", "Drop Location"],
-)
+    # -------------
+    # Wykres słupkowy typu pojazdu
+    # -------------
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("#### Revenue by Vehicle")
+        fig = px.bar(revenue_by_vehicle, x="Vehicle Type", y="Booking Value")
+        st.plotly_chart(fig,use_container_width=True)
+    #fig.show()
+
+    # -------------
+    # Wykres słupkowy metody płatności
+    # -------------
+    with c2:
+        st.markdown("#### Revenue by Payment")
+        fig = px.bar(revenue_by_payment, x="Payment Method", y="Booking Value")
+        st.plotly_chart(fig,use_container_width=True)
+    #fig.show()
+
+    # -------------
+    # Wykres rozrzutu distans vs wartość
+    # -------------
+    st.markdown("#### Scatter distance vs Value")
+    fig = px.scatter(
+        completed_rides,
+        x="Ride Distance",
+        y="Booking Value",
+        hover_data=["Payment Method", "Pickup Location", "Drop Location"],
+    )
+    st.plotly_chart(fig,use_container_width=True)
 #fig.show()
 
 # =========================================================
@@ -136,56 +162,73 @@ no_driver_count = rides["Is No Driver Found"].sum()
 issue_status = not_completed_rides["Booking Status"].value_counts().reset_index()
 issue_status.columns = ["Booking Status", "Bookings"]
 #endregion
+with Tab2:
+    st.header("CANCELLATIONS & ISSUES")
 
-print("CANCELLATIONS & ISSUES")
+    # -------------
+    # KPI 
+    # -------------
+    c1,c2,c3 = st.columns(3)
+    c1.metric("Cancellation rate", str(cancellation_rate) + "%")
+    c2.metric("Incomplete rate", str(incomplete_rate) + "%")
+    c3.metric("No driver rate", str(no_driver_rate) + "%")
 
-# -------------
-# KPI 
-# -------------
-print("Cancellation rate", str(cancellation_rate) + "%")
-print("Incomplete rate", str(incomplete_rate) + "%")
-print("No driver rate", str(no_driver_rate) + "%")
+    issue_type = st.radio("Issue Type",
+             ["All issues", "Customer cancellations", "Driver cancellations", "Incomplete rides"],
+             horizontal=True)
 
-# -------------
-# Wykres słupkowy booking status
-# -------------
-fig = px.bar(issue_status, x="Bookings", y="Booking Status", orientation="h")
-fig.update_layout(yaxis={"categoryorder": "total ascending"})
-#fig.show()
+    # -------------
+    # Wykres słupkowy booking status
+    # -------------
+    c1,c2 = st.columns(2)
+    with c1:
+        fig = px.bar(issue_status, x="Bookings", y="Booking Status", orientation="h")
+        fig.update_layout(yaxis={"categoryorder": "total ascending"})
+        st.plotly_chart(fig,use_container_width=True)
+    #fig.show()
 
-# -------------
-# Wykres kołowy powód rezygnacji klienta
-# -------------
-data = rides["Reason for cancelling by Customer"].dropna().value_counts().reset_index()
-data.columns = ["Reason", "Count"]
-fig = px.pie(data, names="Reason", values="Count", hole=0.35)
-#fig.show()
+    # -------------
+    # Wykres kołowy powód rezygnacji klienta
+    # -------------
+    with c2:
+        if issue_type == "Customer cancellations":
+            data = rides["Reason for cancelling by Customer"].dropna().value_counts().reset_index()
+            data.columns = ["Reason", "Count"]
+            fig = px.pie(data, names="Reason", values="Count", hole=0.35)
+            st.plotly_chart(fig,use_container_width=True)
+        #fig.show()
 
-# -------------
-# Wykres kołowy powód rezygnacji kierowcy
-# -------------
-data = rides["Driver Cancellation Reason"].dropna().value_counts().reset_index()
-data.columns = ["Reason", "Count"]
-fig = px.pie(data, names="Reason", values="Count", hole=0.35)
-#fig.show()
+        # -------------
+        # Wykres kołowy powód rezygnacji kierowcy
+        # -------------
+        elif issue_type == "Driver cancellations":
+            data = rides["Driver Cancellation Reason"].dropna().value_counts().reset_index()
+            data.columns = ["Reason", "Count"]
+            fig = px.pie(data, names="Reason", values="Count", hole=0.35)
+            st.plotly_chart(fig,use_container_width=True)
+        #fig.show()
 
-# -------------
-# Wykres kołowy powód niewykonania przejazdu
-# -------------
-data = rides["Incomplete Rides Reason"].dropna().value_counts().reset_index()
-data.columns = ["Reason", "Count"]
-fig = px.pie(data, names="Reason", values="Count", hole=0.35)
-#fig.show()
+        # -------------
+        # Wykres kołowy powód niewykonania przejazdu
+        # -------------
+        elif issue_type == "Incomplete rides":
+            data = rides["Incomplete Rides Reason"].dropna().value_counts().reset_index()
+            data.columns = ["Reason", "Count"]
+            fig = px.pie(data, names="Reason", values="Count", hole=0.35)
+            st.plotly_chart(fig,use_container_width=True)
+        #fig.show()
 
-# -------------
-# Wykres kołowy status
-# -------------
-data = pd.DataFrame({
-    "Issue type": ["Cancelled", "Incomplete", "No driver found"],
-    "Count": [cancelled_count, incomplete_count, no_driver_count]
-})
-fig = px.pie(data, names="Issue type", values="Count", hole=0.35)
-#fig.show()
+        # -------------
+        # Wykres kołowy status
+        # -------------
+        else:
+            data = pd.DataFrame({
+                "Issue type": ["Cancelled", "Incomplete", "No driver found"],
+                "Count": [cancelled_count, incomplete_count, no_driver_count]
+            })
+            fig = px.pie(data, names="Issue type", values="Count", hole=0.35)
+            st.plotly_chart(fig,use_container_width=True)
+            #fig.show()
 
 
 # =========================================================
